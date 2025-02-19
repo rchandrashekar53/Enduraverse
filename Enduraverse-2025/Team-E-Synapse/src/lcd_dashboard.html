@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #121212;
+            color: white;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .dashboard {
+            width: 90%;
+            max-width: 700px;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(255, 255, 255, 0.1);
+        }
+        .data {
+            font-size: 20px;
+            margin: 10px 0;
+        }
+        .highlight {
+            font-weight: bold;
+            color: #00e676;
+        }
+        canvas {
+            max-width: 100%;
+            background: white;
+            border-radius: 5px;
+        }
+        .fullscreen-btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 18px;
+            border: none;
+            border-radius: 5px;
+            background-color: #00e676;
+            color: black;
+            cursor: pointer;
+        }
+        .fullscreen-btn:hover {
+            background-color: #00c853;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard" id="dashboard">
+        <h2>🚗 Vehicle Dashboard</h2>
+        <p class="data">Speed: <span id="speed" class="highlight">0</span> m/s</p>
+        <p class="data">Distance: <span id="distance" class="highlight">0</span> m</p>
+        <p class="data">Estimated Mileage: <span id="mileage" class="highlight">0</span> km/l</p>
+        <p class="data">🛡️ Safety Score: <span id="safety-score" class="highlight">100</span></p>
+
+        <canvas id="speedChart"></canvas>
+        <canvas id="accelChart"></canvas>
+
+        <button class="fullscreen-btn" onclick="toggleFullScreen()">🔲 Fullscreen</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCERIhE_mz6mX3_-oOAXlalDwyp2548P_Q",
+            authDomain: "test-endurance.firebaseapp.com",
+            databaseURL: "https://test-endurance-default-rtdb.firebaseio.com",
+            projectId: "test-endurance",
+            storageBucket: "test-endurance.firebasestorage.app",
+            messagingSenderId: "969810682887",
+            appId: "1:969810682887:web:7ee34a84248b85622136a2",
+            measurementId: "G-GBVSS29BR0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const sensorRef = ref(database, 'sensorData');
+
+        let prevSpeed = 0;
+        let totalDistance = 0;
+        let safetyScore = 100;
+
+        let speedData = [];
+        let accelData = [];
+        let timestamps = [];
+
+        const speedChartCtx = document.getElementById("speedChart").getContext("2d");
+        const accelChartCtx = document.getElementById("accelChart").getContext("2d");
+
+        const speedChart = new Chart(speedChartCtx, {
+            type: "line",
+            data: {
+                labels: timestamps,
+                datasets: [{
+                    label: "Speed (m/s)",
+                    borderColor: "blue",
+                    data: speedData,
+                    fill: false
+                }]
+            }
+        });
+
+        const accelChart = new Chart(accelChartCtx, {
+            type: "line",
+            data: {
+                labels: timestamps,
+                datasets: [{
+                    label: "Acceleration (m/s²)",
+                    borderColor: "red",
+                    data: accelData,
+                    fill: false
+                }]
+            }
+        });
+
+        onValue(sensorRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                let latestData = Object.values(data).pop();
+                let accel = latestData.accelX || 0;
+                let speed = prevSpeed + accel * 1;
+                totalDistance += speed * 1;
+
+                if (Math.abs(accel) > 2) {
+                    safetyScore -= 5;
+                }
+                safetyScore = Math.max(safetyScore, 0);
+
+                document.getElementById("speed").innerText = speed.toFixed(2);
+                document.getElementById("distance").innerText = totalDistance.toFixed(2);
+                document.getElementById("safety-score").innerText = safetyScore;
+
+                let timestamp = new Date().toLocaleTimeString();
+                timestamps.push(timestamp);
+                speedData.push(speed);
+                accelData.push(accel);
+
+                if (timestamps.length > 20) {
+                    timestamps.shift();
+                    speedData.shift();
+                    accelData.shift();
+                }
+
+                speedChart.data.labels = timestamps;
+                speedChart.data.datasets[0].data = speedData;
+                speedChart.update();
+
+                accelChart.data.labels = timestamps;
+                accelChart.data.datasets[0].data = accelData;
+                accelChart.update();
+
+                prevSpeed = speed;
+            }
+        });
+
+       
+        function toggleFullScreen() {
+            let elem = document.getElementById("dashboard");
+
+            if (!document.fullscreenElement) {
+                elem.requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable fullscreen mode: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+    </script>
+</body>
+</html>
